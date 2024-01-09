@@ -32,9 +32,14 @@ class NDTree:
                 return self.l_points
             else:
                 for child in self.children:
-                    print(child.l_points)
-                    points.update(child.rec_get_points(points))
+                    points.update(child.rec_get_S_points(points))
             return points
+        
+        def __str__(self, level=0):
+            ret = "\t"*level+str(self.get_S_points())+"\n"
+            for child in self.children:
+                ret += child.__str__(level+1)
+            return ret
         
     def __init__(self, root = None, max_size = 6, nb_children = 2, id = 0, pareto_dom_func = None, is_maximisation = True):
         self.root = root
@@ -50,25 +55,9 @@ class NDTree:
         l_points = N.l_points
         to_remove = l_points.keys()
         if N.parent is None:
-            return 
+            self.root = None
         else:
-            self.remove_points_parent(N, to_remove)
-            N.parent.nodes.remove(N)
-
-    #Remove each point to_remove of l_points for the node N and all its parents
-    def remove_points_all_parent(self, N, to_remove):
-        if N.parent is None:
-            return
-        else:
-            self.remove_points(N, to_remove)
-            self.remove_points_parent(N.parent, to_remove)
-        
-    #Remove each point of l_points from the list of key to remove
-    def remove_points(self, N, to_remove):
-        for key in to_remove:
-            del N.l_points[key]
-            del N.solutions[key]
-        return
+            N.parent.children.remove(N)
     
     #Return True if u covers v, False otherwise
     def coverage(self, u, v):
@@ -97,11 +86,15 @@ class NDTree:
             return True
         elif self.pareto_dom_func(N.ideal, new_cost) or self.pareto_dom_func(new_cost, N.nadir):
             if len(N.children) == 0: #is leaf node
+                to_remove = []
                 for key, z in N.l_points.items():
                     if self.pareto_dom_func(z, new_cost):
                         return False
                     elif self.coverage(new_cost, z):
-                        self.remove_points_all_parent(N, [key])
+                        to_remove.append(key)
+                for key in to_remove:
+                    N.l_points.pop(key)
+                    N.solutions.pop(key)
             else:
                 for child in N.children:
                     if not(self.update_node(child, new_cost)):
@@ -128,18 +121,18 @@ class NDTree:
         #Check if any component of new_cost is better than the corresponding component of N.nadir and N.ideal
         if self.IS_MAXIMISATION:
             for i in range(len(new_cost)):
-                if new_cost[i] > N.nadir[i]:
-                    N.nadir[i] = new_cost[i]
-                    changed = True
-                if new_cost[i] < N.ideal[i]:
-                    N.ideal[i] = new_cost[i]
-                    changed = True
-        else:
-            for i in range(len(new_cost)):
                 if new_cost[i] < N.nadir[i]:
                     N.nadir[i] = new_cost[i]
                     changed = True
                 if new_cost[i] > N.ideal[i]:
+                    N.ideal[i] = new_cost[i]
+                    changed = True
+        else:
+            for i in range(len(new_cost)):
+                if new_cost[i] > N.nadir[i]:
+                    N.nadir[i] = new_cost[i]
+                    changed = True
+                if new_cost[i] < N.ideal[i]:
                     N.ideal[i] = new_cost[i]
                     changed = True
         if changed:
@@ -177,7 +170,7 @@ class NDTree:
         max_point, max_key = self.find_furthest_point(N)
         
         #Create a new child with l_points = max_point
-        child_node = self.Node(parent = N, l_points = {max_key: max_point}, solutions = {max_key: N.solutions[max_key]}, nadir = np.copy(max_point), ideal = np.copy(max_point))
+        child_node = self.Node(parent = N, children=[], l_points = {max_key: max_point}, solutions = {max_key: N.solutions[max_key]}, nadir = np.copy(max_point), ideal = np.copy(max_point))
         N.children.append(child_node)
         lpoint = N.l_points.pop(max_key)
         solution = N.solutions.pop(max_key)
@@ -188,7 +181,7 @@ class NDTree:
             max_point, max_key = self.find_furthest_point(N)
 
             #Create a new child with an l_points = max_point
-            new_child = self.Node(parent = N, l_points = {max_key: max_point}, solutions = {max_key: N.solutions[max_key]}, nadir = np.copy(max_point), ideal = np.copy(max_point))
+            new_child = self.Node(parent = N, children=[], l_points = {max_key: max_point}, solutions = {max_key: N.solutions[max_key]}, nadir = np.copy(max_point), ideal = np.copy(max_point))
             N.children.append(new_child)
             N.l_points.pop(max_key)
             N.solutions.pop(max_key)
@@ -204,14 +197,19 @@ class NDTree:
         return
     
     def insert(self, N, new_cost, new_solution):
-        if len(N.children) == 0: #if N is leaf node
-            N.l_points[self.id] = new_cost
-            N.solutions[self.id] = new_solution
+        if self.root is None:
+            self.root = self.Node(l_points = {self.id: new_cost}, children = [], solutions = {self.id: new_solution}, nadir = np.copy(new_cost), ideal = np.copy(new_cost))
             self.id += 1
-            self.update_ideal_nadir(N, new_cost)
-            if len(N.l_points) > self.max_size:
-                self.split(N)
+            return
         else:
-            min_child = self.find_closest_child(N, new_cost)
-            self.insert(min_child, new_cost, new_solution)
-        return
+            if len(N.children) == 0: #if N is leaf node
+                N.l_points[self.id] = new_cost
+                N.solutions[self.id] = new_solution
+                self.id += 1
+                self.update_ideal_nadir(N, new_cost)
+                if len(N.l_points) > self.max_size:
+                    self.split(N)
+            else:
+                min_child = self.find_closest_child(N, new_cost)
+                self.insert(min_child, new_cost, new_solution)
+            return
