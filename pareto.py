@@ -28,5 +28,6 @@ def pareto_front(dict_vect):
         
     return new_dict
 
-dico = {2:np.array([1,2,3,4,2,3]),0:np.array([1,2,3,4,2,8]),1:np.array([4,5,1,4,2,3]),3:np.array([1,4,3,4,2,3])}
-print(pareto_front(dico))
+if __name__ == "__main__":
+    dico = {2:np.array([1,2,3,4,2,3]),0:np.array([1,2,3,4,2,8]),1:np.array([4,5,1,4,2,3]),3:np.array([1,4,3,4,2,3])}
+    print(pareto_front(dico))
