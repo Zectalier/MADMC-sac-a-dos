@@ -19,7 +19,6 @@ def readFile(filename,w,v):
 	f.close()
 	return W
 
-
 def readPoints(filename,p):
 	f = open(filename, "r")
 	nbPND = 0
@@ -35,3 +34,11 @@ def readPoints(filename,p):
 		i=i+1
 	f.close()
 	return YN
+
+#Ordererd weight average fonction d'agrégation
+def OWA(costs, weights):
+    return np.sum(np.sort(costs)*weights)
+
+#Weighted sum fonction d'agrégation
+def WS(costs, weights):
+    return np.sum(costs*weights)

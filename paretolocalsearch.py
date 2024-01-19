@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from IPython import display
 
 #Pareto local search algorithm
-#Input: costs, solutions, v, w, W, costs and solutions are the initial population chosen for the algorithm, v and w are the data, W is the maximum weight
+#Entrée: costs, solutions, v, w, W. costs et solutions sont la population initiale choisie pour l'algorithme, v et w sont les données pour les objets (valeurs et poids) et W le poids maximal du sac
 def PLS(costs, solutions, v, w, W):
     visited = set()
     tree = NDTree()
@@ -26,7 +26,6 @@ def PLS(costs, solutions, v, w, W):
                 tree.update_tree(val, to_test_sol[k])
         costs, solutions = tree.get_all_costs_values()
         #Display the pareto front for the first two objectives dynamically
-        plt.clf()
         plt.scatter(np.vstack(np.array(list(costs.values()))[:,0]), np.vstack(np.array(list(costs.values()))[:,1]))
         display.clear_output(wait=True)
         display.display(plt.gcf())
@@ -35,5 +34,6 @@ def PLS(costs, solutions, v, w, W):
             empty = True
         
         
+
     costs, solutions = tree.get_all_costs_values()
     return costs, solutions
