@@ -1,5 +1,6 @@
 from voisinage import *
 from ndtree import *
+from ndtree_tuple import NDTree as NDTree_tuple
 import matplotlib.pyplot as plt
 from IPython import display
 
@@ -37,3 +38,35 @@ def PLS(costs, solutions, v, w, W):
 
     costs, solutions = tree.get_all_costs_values()
     return costs, solutions
+
+def PLS_tuple(costs, v, w, W):
+    visited = set()
+    tree = NDTree_tuple()
+    for k in costs:
+        tree.update_tree(k) #Initialisation of the tree with pareto dominating solutions
+    costs = tree.get_all_costs()
+    for k in costs:
+        visited.add(frozenset(k[1]))
+    empty = False
+    while not empty:
+        print(len(costs))
+        cost = costs.pop()
+        to_test, visited = voisinage_tuple_var(cost[0], cost[1], v, w, W, visited)
+        if len(to_test) == 0:
+            empty = True
+        else:
+            for k in to_test:
+                tree.update_tree(k)
+        costs = tree.get_all_costs()
+        #Display the pareto front for the first two objectives dynamically
+        plt.clf()
+        plt.scatter(np.vstack(np.array(list(costs.values()))[:,0]), np.vstack(np.array(list(costs.values()))[:,1]))
+        display.clear_output(wait=True)
+        display.display(plt.gcf())
+
+        if len(costs) == 0:
+            empty = True
+        
+        
+    costs = tree.get_all_costs()
+    return costs
