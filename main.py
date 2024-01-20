@@ -1,71 +1,180 @@
+import os
+import time
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import gurobipy as gp
+
+import argparse, sys
 
 from ndtree import *
 from pareto import *
 from func import *
 from voisinage import *
 from paretolocalsearch import *
+from gurobi import *
 
-w=np.zeros(200,dtype=int)
-v=np.zeros((200,6),dtype=int)
-filename = "data/2KP200-TA-0.dat"
-W=readFile(filename,w,v)
+N_CRITERES = 3
+N_OBJETS = 50
+AGR_FUNC = "WS"
+EPS = 0.001
 
-#Génération de m solutions aléatoires
-m=1000
+def main():
+	parser=argparse.ArgumentParser()
+	parser.add_argument('-p', help='which process to run')
+	parser.add_argument('-c', help='number of criteria')
+	parser.add_argument('-o', help='number of objects')
+	parser.add_argument('-f', help='aggregation function')
+	parser.add_argument('-eps', help='epsilon for which the algorithm should stop')
+	parser.add_argument('-a', help='do all functions and save results')
+	parser.add_argument('-l', help='log the results')
 
-#Reshape v and w to only take first three objectives and first 20 items
-v = v[:20]
-v = v[:,:3]
-w = w[:20]
+	args=parser.parse_args()
 
-costs = {}
-solutions = {}
+	w=np.zeros(200,dtype=int)
+	v=np.zeros((200,6),dtype=int)
+	filename = "data/2KP200-TA-0.dat"
+	W=readFile(filename,w,v)
 
-for i in range(m):
-	w_total = 0
-	current_solution = set()
-	current_cost =  np.zeros(v.shape[1])
-	arr = np.arange(w.shape[0])
-	np.random.shuffle(arr)
-	for j in arr:
-		if w_total + w[j] <= W:
-			current_solution.add(j)
-			next_item = v[j]
-			w_total += w[j]
-			for k in range(v.shape[1]):
-				current_cost[k] += next_item[k]
-	costs[i] = current_cost
-	solutions[i] = current_solution
+	#Generate m random solutions
+	m=1000
 
-PLS(costs, solutions, v, w, W)
+	if args.c == None:
+		N_CRITERES = 3
+	elif int(args.c) > 6:
+		print("Warning: Invalid number of criteria. Maximum is 6, using default value, 3.")
+	elif int(args.c) < 2:
+		print("Warning: Invalid number of criteria. Minimum is 2, using default value, 3.")
+	else:
+		N_CRITERES = int(args.c)
 
-# Create a new model
-model = gp.Model("knapsack")
+	if args.o == None:
+		N_OBJETS = 50
+	elif int(args.o) > 200:
+		print("Warning: Invalid number of objects. Maximum is 200, using default value, 50.")
+	elif int(args.o) < 2:
+		print("Warning: Invalid number of objects. Minimum is 2, using default value, 50.")
+	else:
+		N_OBJETS = int(args.o)
 
-# Define the decision variables
-x = {}
-for i in range(num_items):
-    x[i] = model.addVar(vtype=gp.GRB.BINARY, name=f"x_{i}")
+	if args.eps == None:
+		pass
+	elif float(args.eps) > 1:
+		print("Warning: Invalid epsilon. Maximum is 1, using default value, 0.05.")
+	elif float(args.eps) < 0:
+		print("Warning: Invalid epsilon. Minimum is 0, using default value, 0.05.")
+	else:
+		EPS = float(args.eps)
 
-# Set the objective function
-model.setObjective(gp.quicksum(profit[i] * x[i] for i in range(num_items)), gp.GRB.MAXIMIZE)
+	match args.f:
+		case "OWA":
+			AGR_FUNC = "OWA"
+		case "WS":
+			AGR_FUNC = "WS"
+		case "Choquet":
+			AGR_FUNC = "Choquet"
+		case _:
+			print("Warning: Invalid or not specified aggregation function. Valid are \"OWA\", \"WS\" or \"Choquet\", using default value, \"WS\".")
+			AGR_FUNC = "WS"
 
-# Add the capacity constraint
-model.addConstr(gp.quicksum(weight[i] * x[i] for i in range(num_items)) <= capacity, "capacity")
+	if args.l == "True":
+		log = True
+	else:
+		log = False
 
-# Optimize the model
-model.optimize()
+	#Reshape v and w to only take first the required number of objects and criteria
+	v = v[:N_OBJETS]
+	v = v[:,:N_CRITERES]
+	w = w[:N_OBJETS]
 
-# Check if the optimization was successful
-if model.status == gp.GRB.OPTIMAL:
-    # Get the optimal solution
-    solution = model.getAttr("x", x)
-    for i in range(num_items):
-        if solution[i] > 0.5:
-            print(f"Item {i} is selected")
-else:
-    print("No feasible solution found.")
+	#W equals the sum of the weights divided by 2
+	W = int(w.sum()/2)
+
+	costs = {}
+	solutions = {}
+
+	for i in range(m):
+		w_total = 0
+		current_solution = set()
+		current_cost =  np.zeros(v.shape[1])
+		arr = np.arange(w.shape[0])
+		np.random.shuffle(arr)
+		for j in arr:
+			if w_total + w[j] <= W:
+				current_solution.add(j)
+				next_item = v[j]
+				w_total += w[j]
+				for k in range(v.shape[1]):
+					current_cost[k] += next_item[k]
+		costs[i] = current_cost
+
+		solutions[i] = current_solution
+
+	if args.a == "True":
+		procedure_1_all(costs, solutions, v, w, W, log)
+	else:
+		if args.p == "1" or args.p == None:
+			procedure_1(costs, solutions, v, w, W, log)
+		elif args.p == "2":
+			procedure_2()
+		else:
+			print("Warning: Invalid process. Valid are \"1\" or \"2\", using default value, \"1\".")
+			procedure_1(costs, solutions, v, w, W, log)
+	
+
+def procedure_1(costs, solutions, v, w, W, logging = False):
+	print("Starting Local Search ... \n")
+	time_start = time.time()
+	
+	pls = PLS(costs, solutions, v, w, W)
+
+	id = np.array(list(pls[0].keys()))
+	X = np.array(list(pls[0].values()))
+
+	dm = DM(N_CRITERES, AGR_FUNC)
+	rbe = RBE(N_CRITERES, AGR_FUNC, X, log=logging)
+	print("\nWeights for the Decision Maker " + str(dm.weights) + "\n")
+
+	res_init = rbe.MMR(X)
+	MMR_value = res_init[0]
+	print("Initial MMR value before any query: " + str(res_init[0]) + ", found for the solution " + str(res_init[1]) + "\n")
+
+	if logging:
+		l = np.array([rbe.n_queries, res_init[0], time.time() - time_start]).reshape(1,3)
+		log = pd.DataFrame(l)
+		log.columns = ["Query", "MMR", "Time since start"]
+
+	print("Starting Incremental Elicitation ... \n")
+	#Incremental Elicitation
+	while MMR_value > EPS:
+		res = rbe.CSS_ask_query(X, dm)
+		MMR_value = res[0]
+		print("Query " + str(rbe.n_queries) + ": " + str(rbe.pairs[-1]))
+		print("MMR value for the query: " + str(res[0]) + ", found for the solution " + str(res[1]) + "\n")
+
+		if logging:
+			l = np.array([rbe.n_queries, res[0], time.time() - time_start])
+			log.loc[len(log.index)] = l
+
+	w = pls[1][id[np.where(X == res[1])[0]][0]]
+	print("End of Incremental Elicitation, MMR final value:" + str(MMR_value) + "\n")
+	print("Solution opt found: " + str(res[1]) + " with objects: " + str(w) + "\n")
+	print("Actual opt Solution: " + str(dm.get_opt(X)))
+	if logging:
+		#Increment the log file name if it already exists
+		filename = "./logs/" + str(N_CRITERES) + "c_" + str(N_OBJETS) + "o_" + str(AGR_FUNC) + "_log"
+		i = 1
+		while os.path.isfile(filename + "_" + str(i) + ".csv"):
+			i += 1
+		filename = filename + "_" + str(i) + ".csv"
+		log.to_csv(filename,index=False)
+	
+	print("End")
+
+
+def procedure_2():
+	return
+
+def procedure_1_all(costs, solutions, v, w, W, logging = False): #Used for comparing the different aggregation functions
+	return
+if __name__ == "__main__":
+	main()

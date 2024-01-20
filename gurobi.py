@@ -15,8 +15,8 @@ class RBE():
         self.init_model()
         self.init_MR = np.max([self.MR(x, X) for x in X]) #Set the initial MR, wich correspond to the initial MR without any queries
 
-        if self.logging == True:
-            self.model.write('model' + str(self.n_queries) + '.LP') #Write the model for the current state of the elicitation process
+        """if self.logging:
+            self.model.write('model' + str(self.n_queries) + '.LP') #Write the model for the current state of the elicitation process"""
 
     def init_model(self):
         self.weight_var = [self.model.addVar(vtype=gp.GRB.CONTINUOUS, lb=0, ub=1, name="w"+str(w)) for w in range(self.n_crit)]
@@ -33,8 +33,9 @@ class RBE():
     
     #The Minimax Regret (MMR) over X 
     def MMR(self, X):
-        MR_res = np.min([self.MR_normalized(x, X) for x in X])
-        return MR_res
+        all_mr = [self.MR_normalized(x, X) for x in X]
+        ind = np.argmin(all_mr)
+        return all_mr[ind], X[ind]
 
     #The Max Regret (MR) of alternative x ∈ X
     def MR(self, x, X):
@@ -50,7 +51,6 @@ class RBE():
             self.model.setObjective(gp.quicksum(self.weight_var[i]*(y[i]-x[i]) for i in range(self.n_crit)), gp.GRB.MAXIMIZE)
         self.model.update()
         self.model.optimize()
-        self.model.printStats()
         return self.model.objVal
 
     #Current Solution strategy (CSS), return xp and yp for the next query
@@ -66,8 +66,8 @@ class RBE():
             self.insert_pair([xp, yp])
         else:
             self.insert_pair([yp, xp])
-        if self.logging == True:
-            self.model.write('model' + str(self.n_queries) + '.LP') #Write the model for the current state of the elicitation process, will write the last pair from PMR compared
+        """if self.logging:
+            self.model.write('model' + str(self.n_queries) + '.LP') #Write the model for the current state of the elicitation process, will write the last pair from PMR compared"""
         return self.MMR(X)
         
 class DM():
@@ -85,3 +85,7 @@ class DM():
     def compare(self, x, y):
         if self.agr_func == "WS":
             return np.sum(self.weights*x) >= np.sum(self.weights*y)
+    
+    def get_opt(self, X):
+        if self.agr_func == "WS":
+            return X[np.argmax([np.sum(self.weights*x) for x in X])]
