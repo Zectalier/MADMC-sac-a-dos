@@ -190,12 +190,23 @@ class DM():
     
     def get_opt(self, X):
         if self.agr_func == "WS":
-            return X[np.argmax([np.sum(self.weights*x) for x in X])]
+            res = [np.argmax([np.sum(self.weights*x) for x in X])]
+            return X[np.argmax(res)], np.max(res)
         if self.agr_func == "OWA":
-            return X[np.argmax([np.sum(self.weights*np.sort(x)) for x in X])]
+            res = [np.argmax([np.sum(self.weights*np.sort(x)) for x in X])]
+            return X[np.argmax(res)], np.max(res)
         if self.agr_func == "Choquet":
-            return X[np.argmax([self.get_choquet_value(x) for x in X])]
+            res = [self.get_choquet_value(x) for x in X]
+            return X[np.argmax(res)], np.max(res)
     
+    def get_value(self, x):
+        if self.agr_func == "WS":
+            return np.sum(self.weights*x)
+        if self.agr_func == "OWA":
+            return np.sum(self.weights*np.sort(x))
+        if self.agr_func == "Choquet":
+            return self.get_choquet_value(x)
+        
     def get_choquet_value(self, x):
         ind_x = np.argsort(x)
         temp = list(range(self.n_crit))
