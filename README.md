@@ -28,4 +28,4 @@ Vous pouvez utiliser les arguments optionnels suivants:
 | `-f`   | `WS` | Spécifie la fonction d'agrégation. |
 | `-eps` | 0.001 | Spécifie la valeur epsilon à laquelle l'élicitation incrémentale doit s'arrêter. |
 | `-a`   | `False` | Spécifie si toutes les fonctions et procédures doivent être exécutées. |
-| `-l`   | `True` | Spécifie si les résultats doivent être sauvegardés dans un fichier. |
+| `-l`   | `False` | Spécifie si les résultats doivent être sauvegardés dans un fichier. |
