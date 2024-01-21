@@ -11,7 +11,9 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["-p","2","-f","WS","-eps","0.1"]
+            "args": ["-eps","0.01","-a","True","-l","True", "-c", "3", "-o","50"] //To test all process
+            //"args": ["-p","1","-f","OWA","-eps","0.01","-l","True", "-c", "3", "-o","50"] //Procedure 1, OWA, eps à 0.01, 3 critères, 50 objets
+            //"args": ["-p","2","-f","OWA","-eps","0.01","-l","True", "-c", "3", "-o","50"]
         }
     ]
 }
