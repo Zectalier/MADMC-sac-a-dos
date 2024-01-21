@@ -53,25 +53,45 @@ def PMR(x, y, weights, Fp):
 
 #Get optimal solution for a weighted sum function using Gurobi
 def get_opt_ws(v, w, W, weights): #v value of each object, w weight of each object, W max weight of the knapsack, weights weights of the Choquet integral
-	m = gp.Model("ws")
-	m.Params.LogToConsole = 0
-	x = m.addVars(v.shape[0], vtype=gp.GRB.BINARY, name="x")
-	m.setObjective(gp.quicksum(v[i]*x[i] for i in range(v.shape[0])), gp.GRB.MAXIMIZE)
-	m.addConstr(gp.quicksum(w[i]*x[i] for i in range(v.shape[0])) <= W)
-	m.update()
-	m.optimize()
+	model = gp.Model("ws")
+	model.Params.LogToConsole = 0
+	x = [model.addVar(vtype=gp.GRB.BINARY, name="x"+str(i)) for i in range(v.shape[0])]
+	model.setObjective(gp.quicksum(weights[j]*v[i][j]*x[i] for i in range(len(x)) for j in range(len(weights))), gp.GRB.MAXIMIZE)
+	model.addConstr(gp.quicksum(w[i]*x[i] for i in range(v.shape[0])) <= W)
+	model.update()
+	model.optimize()
 	objets = []
-	for v in m.getVars():
-		if v.x == 1:
-			objets.append(v.varName)
-	return (objets, m.objVal)
+	for v in model.getVars(): #Only var is x
+		if v.X == 1:
+			objets.append(v.varName[1:])
+	model.write('modelws.LP')
+	return (objets, model.objVal)
 
-#Get optimal solution for a ordered weighted average function using Ogryczak formulation
+#Get optimal solution for a ordered weighted average function using Ogryczak formulation, weights sorted in descending order (monotonic)
 def get_opt_owa(v, w, W, weights): 
-	#TODO
-	return None
+	model = gp.Model("owa")
+	model.Params.LogToConsole = 0
+	w_p = [weights[i] - weights[i+1] for i in range(len(weights)-1)] + [weights[-1]]
+	m = len(w_p)
+	r = [model.addVar(vtype=gp.GRB.CONTINUOUS,name="r"+str(k)) for k in range(m)]
+	d = [[model.addVar(vtype=gp.GRB.CONTINUOUS,lb=0,name="d"+str(i)+"_"+str(k)) for i in range(m)] for k in range(m)]
+	x = [model.addVar(vtype=gp.GRB.BINARY, name="x"+str(i)) for i in range(v.shape[0])]
+	model.setObjective(gp.quicksum((k+1)*w_p[k]*r[k] - gp.quicksum(w_p[k]*d[i][k] for i in range(m)) for k in range(m)), gp.GRB.MAXIMIZE)
+	model.addConstr(gp.quicksum(w[i]*x[i] for i in range(v.shape[0])) <= W)
+	for i in range(m):
+		yi = gp.quicksum(v[:,i] * x)
+		for k in range(m):
+			model.addConstr(d[i][k] >= r[k] - yi)
+	model.update()
+	model.optimize()
+	objets = []
+	for v in model.getVars():
+		if v.X == 1 and v.varName[0] == 'x':
+			objets.append(v.varName[1:])
+	model.write('modelowa.LP')
+	return (objets, model.objVal)
 
+#Get optimal solution for a Choquet integral function using Gurobi
 def get_opt_choquet(v, w, W, weights): 
 	#TODO
 	return None
-
