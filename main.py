@@ -6,6 +6,7 @@ import pandas as pd
 
 import argparse, sys
 
+from incremental_local_search import *
 from ndtree import *
 from pareto import *
 from func import *
@@ -19,6 +20,7 @@ AGR_FUNC = "WS"
 EPS = 0.001
 
 def main():
+	global N_CRITERES, N_OBJETS, AGR_FUNC, EPS
 	parser=argparse.ArgumentParser()
 	parser.add_argument('-p', help='which process to run')
 	parser.add_argument('-c', help='number of criteria')
@@ -115,13 +117,14 @@ def main():
 		if args.p == "1" or args.p == None:
 			procedure_1(costs, solutions, v, w, W, log)
 		elif args.p == "2":
-			procedure_2()
+			procedure_2(costs, solutions, v, w, W, log)
 		else:
 			print("Warning: Invalid process. Valid are \"1\" or \"2\", using default value, \"1\".")
 			procedure_1(costs, solutions, v, w, W, log)
 	
 
 def procedure_1(costs, solutions, v, w, W, logging = False):
+	global N_CRITERES, N_OBJETS, AGR_FUNC, EPS
 	print("Starting Local Search ... \n")
 	time_start = time.time()
 	
@@ -133,15 +136,16 @@ def procedure_1(costs, solutions, v, w, W, logging = False):
 	dm = DM(N_CRITERES, AGR_FUNC)
 	rbe = RBE(N_CRITERES, AGR_FUNC, X, log=logging)
 	print("\nWeights for the Decision Maker " + str(dm.weights) + "\n")
-
+	print("Optimal solution for the Decision Maker " + str(dm.get_opt(X)) + "\n")
+	dm_opt = dm.get_opt(X)
 	res_init = rbe.MMR(X)
 	MMR_value = res_init[0]
 	print("Initial MMR value before any query: " + str(res_init[0]) + ", found for the solution " + str(res_init[1]) + "\n")
 
 	if logging:
-		l = np.array([rbe.n_queries, res_init[0], time.time() - time_start]).reshape(1,3)
+		l = np.array([rbe.n_queries, res_init[0], str(res_init[1]), str(dm_opt),  time.time() - time_start]).reshape(1,5)
 		log = pd.DataFrame(l)
-		log.columns = ["Query", "MMR", "Time since start"]
+		log.columns = ["Query", "MMR", "MMR Solution", "Optimal Solution", "Time since start"]
 
 	print("Starting Incremental Elicitation ... \n")
 	#Incremental Elicitation
@@ -152,7 +156,7 @@ def procedure_1(costs, solutions, v, w, W, logging = False):
 		print("MMR value for the query: " + str(res[0]) + ", found for the solution " + str(res[1]) + "\n")
 
 		if logging:
-			l = np.array([rbe.n_queries, res[0], time.time() - time_start])
+			l = np.array([rbe.n_queries, res[0], str(res[1]), str(dm_opt), time.time() - time_start])
 			log.loc[len(log.index)] = l
 
 	w = pls[1][id[np.where(X == res[1])[0]][0]]
@@ -161,7 +165,7 @@ def procedure_1(costs, solutions, v, w, W, logging = False):
 	print("Actual opt Solution: " + str(dm.get_opt(X)))
 	if logging:
 		#Increment the log file name if it already exists
-		filename = "./logs/" + str(N_CRITERES) + "c_" + str(N_OBJETS) + "o_" + str(AGR_FUNC) + "_log"
+		filename = "./logs/" + str(N_CRITERES) + "c_" + str(N_OBJETS) + "o_" + str(EPS) + "eps_" + str(AGR_FUNC) + "_single_log"
 		i = 1
 		while os.path.isfile(filename + "_" + str(i) + ".csv"):
 			i += 1
@@ -171,10 +175,123 @@ def procedure_1(costs, solutions, v, w, W, logging = False):
 	print("End")
 
 
-def procedure_2():
-	return
+def procedure_2(costs, solutions, v, w, W, logging = False):
+	global N_CRITERES, N_OBJETS, AGR_FUNC, EPS
+	print("Starting Incremental Local Search ... \n")
+	time_start = time.time()
+	iels, res = IELS(costs, solutions, v, w, W, AGR_FUNC, EPS)
+	print(iels)
+	print(res)
 
-def procedure_1_all(costs, solutions, v, w, W, logging = False): #Used for comparing the different aggregation functions
-	return
+def procedure_1_all(costs, solutions, v, w, W, logging = False): #Used for comparing the different aggregation functions, so they can use the same results from the PLS
+	time_start = time.time()
+	pls = PLS(costs, solutions, v, w, W)
+	pls_time = time.time() - time_start
+	if logging:
+		#Increment the log file name if it already exists
+		filename = "./logs/" + str(N_CRITERES) + "c_" + str(N_OBJETS) + "o_" + str(EPS) + "eps_" + "ALL" + "_timePLS"
+		i = 1
+		while os.path.isfile(filename + "_" + str(i) + ".csv"):
+			i += 1
+		filename = filename + "_" + str(i) + ".csv"
+		timelog = pd.DataFrame(np.array([pls_time]))
+		timelog.to_csv(filename,index=False)
+
+	id = np.array(list(pls[0].keys()))
+	X = np.array(list(pls[0].values()))
+
+	#WS
+	AGR_FUNC = "WS"
+
+	owa_start = time.time()
+	dm = DM(N_CRITERES, AGR_FUNC)
+	rbe = RBE(N_CRITERES, AGR_FUNC, X, log=logging)
+	dm_opt = dm.get_opt(X)
+	res_init = rbe.MMR(X)
+	MMR_value = res_init[0]
+	if logging:
+		l = np.array([rbe.n_queries, res_init[0], str(res_init[1]), str(dm_opt), time.time() - owa_start]).reshape(1,5)
+		log = pd.DataFrame(l)
+		log.columns = ["Query", "MMR", "MMR Solution", "Optimal Solution", "Time since start"]
+	
+	while MMR_value > EPS:
+		res = rbe.CSS_ask_query(X, dm)
+		MMR_value = res[0]
+		if logging:
+			l = np.array([rbe.n_queries, res[0], str(res[1]), str(dm_opt), time.time() - owa_start])
+			log.loc[len(log.index)] = l
+
+	w = pls[1][id[np.where(X == res[1])[0]][0]]
+	if logging:
+		#Increment the log file name if it already exists
+		filename = "./logs/" + str(N_CRITERES) + "c_" + str(N_OBJETS) + "o_" + str(EPS) + "eps_" + str(AGR_FUNC) + "_all_log"
+		i = 1
+		while os.path.isfile(filename + "_" + str(i) + ".csv"):
+			i += 1
+		filename = filename + "_" + str(i) + ".csv"
+		log.to_csv(filename,index=False)
+	
+	#OWA
+	AGR_FUNC = "OWA"
+
+	ws_start = time.time()
+	dm = DM(N_CRITERES, AGR_FUNC)
+	rbe = RBE(N_CRITERES, AGR_FUNC, X, log=logging)
+	dm_opt = dm.get_opt(X)
+	res_init = rbe.MMR(X)
+	MMR_value = res_init[0]
+	if logging:
+		l = np.array([rbe.n_queries, res_init[0], str(res_init[1]), str(dm_opt), time.time() - ws_start]).reshape(1,5)
+		log = pd.DataFrame(l)
+		log.columns = ["Query", "MMR", "MMR Solution", "Optimal Solution", "Time since start"]
+	
+	while MMR_value > EPS:
+		res = rbe.CSS_ask_query(X, dm)
+		MMR_value = res[0]
+		if logging:
+			l = np.array([rbe.n_queries, res[0], str(res[1]), str(dm_opt), time.time() - ws_start])
+			log.loc[len(log.index)] = l
+
+	w = pls[1][id[np.where(X == res[1])[0]][0]]
+	if logging:
+		#Increment the log file name if it already exists
+		filename = "./logs/" + str(N_CRITERES) + "c_" + str(N_OBJETS) + "o_" + str(EPS) + "eps_" + str(AGR_FUNC) + "_all_log"
+		i = 1
+		while os.path.isfile(filename + "_" + str(i) + ".csv"):
+			i += 1
+		filename = filename + "_" + str(i) + ".csv"
+		log.to_csv(filename,index=False)
+
+	#Choquet
+	AGR_FUNC = "Choquet"
+
+	choquet_start = time.time()
+	dm = DM(N_CRITERES, AGR_FUNC)
+	rbe = RBE(N_CRITERES, AGR_FUNC, X, log=logging)
+	dm_opt = dm.get_opt(X)
+	res_init = rbe.MMR(X)
+	MMR_value = res_init[0]
+	if logging:
+		l = np.array([rbe.n_queries, res_init[0], str(res_init[1]), str(dm_opt), time.time() - choquet_start]).reshape(1,5)
+		log = pd.DataFrame(l)
+		log.columns = ["Query", "MMR", "MMR Solution", "Optimal Solution", "Time since start"]
+	
+	while MMR_value > EPS:
+		res = rbe.CSS_ask_query(X, dm)
+		MMR_value = res[0]
+		if logging:
+			l = np.array([rbe.n_queries, res[0], str(res[1]), str(dm_opt), time.time() - choquet_start])
+			log.loc[len(log.index)] = l
+
+	w = pls[1][id[np.where(X == res[1])[0]][0]]
+	if logging:
+		#Increment the log file name if it already exists
+		filename = "./logs/" + str(N_CRITERES) + "c_" + str(N_OBJETS) + "o_" + str(EPS) + "eps_" + str(AGR_FUNC) + "_all_log"
+		i = 1
+		while os.path.isfile(filename + "_" + str(i) + ".csv"):
+			i += 1
+		filename = filename + "_" + str(i) + ".csv"
+		log.to_csv(filename,index=False)
+
 if __name__ == "__main__":
 	main()
