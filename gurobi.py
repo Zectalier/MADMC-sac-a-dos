@@ -56,8 +56,8 @@ class RBE():
             y_temp = np.sort(y)
             weights_x = self.get_weight_choquet(x)
             weights_y = self.get_weight_choquet(y)
-            self.model.addConstr(self.weight_var[weights_x[0]]*x_temp[0] - self.weight_var[weights_y[0]]*y_temp[0] >= 0)
-            self.model.addConstr(gp.quicksum(self.weight_var[weights_x[i]]*(x_temp[i]-x_temp[i-1]) - self.weight_var[weights_y[i]]*(y_temp[i]-y_temp[i-1]) for i in range(1,self.n_crit)) >= 0 )
+            e = gp.LinExpr(self.weight_var[weights_x[0]]*x_temp[0] - self.weight_var[weights_y[0]]*y_temp[0])
+            self.model.addConstr((e + gp.quicksum(self.weight_var[weights_x[i]]*(x_temp[i]-x_temp[i-1]) - self.weight_var[weights_y[i]]*(y_temp[i]-y_temp[i-1]) for i in range(1,self.n_crit))) >= 0 )
             self.add_convexity_constraint()
                 
     

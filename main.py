@@ -35,7 +35,15 @@ def main():
 	w=np.zeros(200,dtype=int)
 	v=np.zeros((200,6),dtype=int)
 	filename = "data/2KP200-TA-0.dat"
-	W=readFile(filename,w,v)
+	W = readFile(filename,w,v)
+
+	#Reshape v and w to only take first the required number of objects and criteria
+	v = v[:N_OBJETS]
+	v = v[:,:N_CRITERES]
+	w = w[:N_OBJETS]
+
+	#W equals the sum of the weights divided by 2
+	W = int(w.sum()/2)
 
 	#Generate m random solutions
 	m=1000
@@ -82,14 +90,6 @@ def main():
 		log = True
 	else:
 		log = False
-
-	#Reshape v and w to only take first the required number of objects and criteria
-	v = v[:N_OBJETS]
-	v = v[:,:N_CRITERES]
-	w = w[:N_OBJETS]
-
-	#W equals the sum of the weights divided by 2
-	W = int(w.sum()/2)
 
 	costs = {}
 	solutions = {}
