@@ -11,7 +11,7 @@ def get_all_combinations(p):
     res = [list(l) for l in all_subsets if l != ()]
     return res
 
-#Regret-based Elicitation
+#Regret-based Elicitation, Contains the model for the incremental elicitation process
 class RBE():
     
     def __init__(self, nb_criteres, agr_func, X, log = False):
@@ -140,6 +140,7 @@ class RBE():
             self.model.write('model' + str(self.n_queries) + '.LP') #Write the model for the current state of the elicitation process, will write the last pair from PMR compared"""
         return self.MMR(X)
         
+#Decision Maker, used to ask queries
 class DM():
     
     def __init__(self, nb_criteres, agr_func):
@@ -147,6 +148,7 @@ class DM():
         self.agr_func = agr_func
         self.comb = get_all_combinations(self.n_crit)
         self.weights = self.get_random_weights()
+
     #Return a random vector of weights of size n_crit, summing to 1
     def get_random_weights(self):
         if self.agr_func == "WS":
